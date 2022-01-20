@@ -15,12 +15,11 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setup(27,GPIO.OUT)
 GPIO.setup(23,GPIO.OUT)
 
-async def send_telemetry(conn_str, attribute_value, attribute_name, component_name):
+async def send_telemetry(conn_str, telemetry_message, component_name):
     device_client = IoTHubDeviceClient.create_from_connection_string(conn_str)
     
     await device_client.connect()
     
-    telemetry_message = attribute_value
     msg = Message(json.dumps(telemetry_message))
     msg.content_encoding = "utf-8"
     msg.content_type = "application/json"
@@ -55,7 +54,7 @@ while(True):
         "presenca": presenca
     }
     
-    asyncio.run(send_telemetry(IOTHUB_DEVICE_CONNECTION_STRING, dados, "SmartRoom", "Sensores"))
+    asyncio.run(send_telemetry(IOTHUB_DEVICE_CONNECTION_STRING, dados, "Sensores"))
     
     '''
     if(luminosidade < "159"):
