@@ -10,12 +10,3 @@ def read_last_file(db_conn_string,database_name,container_name):#Returns most re
 	for data in x:
 		output.append(data)
 	return output[0]
-
-
-db_conn_string='mongodb://bancodedadosteste:zpqRKVboAwSlLv0ktQULEGPdTGdRd4O6mqUEfNi8NFq9ggJIBqDzhNUPYBLb8BsXIeUXPGcAaOGI6Ja8GDq9wg==@bancodedadosteste.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@bancodedadosteste@'
-database_name="bancodedadosiot"
-container_name="iot_dados"
-
-
-out=read_last_file(db_conn_string,database_name,container_name)
-print(out)
