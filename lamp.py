@@ -5,13 +5,14 @@ class Lamp:#Classe lâmpada
 	
 	def __init__(self,luminosity_set):
 		self.luminosity_set=luminosity_set
+		self.max_luminosity=100
 		self.set_luminosity(luminosity_set)
 		
 		
 	
 	def set_luminosity(self,luminosity_set):#Método para mudar a intensidade do led
-		if luminosity_set>100:
-			return self.set_luminosity(100)
+		if luminosity_set>self.max_luminosity:
+			return self.set_luminosity(self.max_luminosity)
 		elif self.luminosity_set==luminosity_set:
 			return 1
 		self.luminosity_set=luminosity_set
@@ -49,13 +50,13 @@ def calibration_routine(lamp):#Rotina de calibração da lâmpada, executada no 
 		telemetry=db.read_telemetry(db.db_conn_string,db.database_name,db.container_telemetry_name)
 	light_level_turn_off=telemetry[2]
 	
-	lamp.set_luminosity(100)
+	lamp.set_luminosity(lamp.max_luminosity)
 	time=datetime.datetime.utcnow()
 	telemetry=db.read_telemetry(db.db_conn_string,db.database_name,db.container_telemetry_name)
 	while telemetry[4]<time:
 		telemetry=db.read_telemetry(db.db_conn_string,db.database_name,db.container_telemetry_name)
 	light_level_turn_on=telemetry[2]
 
-	k_luminosity=(light_level_turn_on-light_level_turn_off)/100
+	k_luminosity=(light_level_turn_on-light_level_turn_off)/lamp.max_luminosity
 
 	return k_luminosity
