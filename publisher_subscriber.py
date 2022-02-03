@@ -4,9 +4,12 @@ import time
 from azure.iot.device.aio import IoTHubDeviceClient
 from azure.iot.device import Message
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
+import azure.servicebus
 import json
 import asyncio
 import threading
+import ast
+import datetime
 
 IOTHUB_DEVICE_CONNECTION_STRING = 'HostName=ServidorIoT.azure-devices.net;DeviceId=DispositivoTeste;SharedAccessKey=vI0U2HxL1HV/60SVzXoskPCAhNZpmmN28r1ilGaiKfs='
 CONNECTION_STR = "Endpoint=sb://testeiotbroker.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=Tig31UtDJ9LY+epBCrzehYnPtM3KvbLjxMU9SycGcKY="
@@ -25,7 +28,6 @@ def send_telemetry(sender, telemetry_message):
     # send the message to the topic
     with sender:
         sender.send_messages(message)
-
 
 def thread_telemetria(servicebus_client,TOPIC_NAME):
     while(True):
@@ -55,7 +57,8 @@ def thread_telemetria(servicebus_client,TOPIC_NAME):
             "temperatura": temperatura,
             "umidade": umidade,
             "luminosidade": luminosidade,
-            "presenca": presenca
+            "presenca": presenca,
+            "tempo": datetime.datetime.utcnow()
         }
         with servicebus_client:
             sender = servicebus_client.get_topic_sender(topic_name=TOPIC_NAME)
@@ -75,25 +78,32 @@ def thread_telemetria(servicebus_client,TOPIC_NAME):
         '''
             
         time.sleep(1)
+        break
 
 def thread_atuacao(servicebus_client,TOPIC_NAME,SUBSCRIPTION_NAME):
     
     while 1:
-        with servicebus_client:
+        with servicebus_client as client:
             receiver = servicebus_client.get_subscription_receiver(topic_name=TOPIC_NAME, subscription_name=SUBSCRIPTION_NAME, max_wait_time=5)
             with receiver:
                 for msg in receiver:
-                    print(msg)
-                    receiver.complete_message(msg)
+                    message=ast.literal_eval(str(msg))
+                    #message=json.loads(msg.body().decode('utf-8'))
+                    #print(message)
+                    #receiver.complete_message(msg)
 
         time.sleep(1)
+        break
 
 servicebus_client = ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR, logging_enable=True)
 
-t_1 = threading.Thread(target=thread_telemetria, args=(servicebus_client,TOPIC_NAME,))
-t_2 = threading.Thread(target=thread_atuacao, args=(servicebus_client,TOPIC_NAME,SUBSCRIPTION_NAME,))
+#t_1 = threading.Thread(target=thread_telemetria, args=(servicebus_client,TOPIC_NAME,))
+#t_2 = threading.Thread(target=thread_atuacao, args=(servicebus_client,TOPIC_NAME,SUBSCRIPTION_NAME,))
 
-t_1.start()
+#t_1.start()
 
-t_2.start()
+#t_2.start()
+
+thread_telemetria(servicebus_client,TOPIC_NAME)
+thread_atuacao(servicebus_client,TOPIC_NAME,SUBSCRIPTION_NAME)
 
