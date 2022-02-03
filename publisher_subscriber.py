@@ -91,7 +91,7 @@ def thread_atualizar_controle(controle,CONNECTION_STR,TOPIC_NAME_CONTROL,SUBSCRI
         comandos=receive_message(servicebus_client,TOPIC_NAME_CONTROL,SUBSCRIPTION_NAME)
         if comandos!=0:
             controle.atualizar_parametros(comandos)
-        time.sleep(1)
+        time.sleep(5)
 
 
 
