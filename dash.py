@@ -1,31 +1,21 @@
 import streamlit as st
 import pandas as pd
 import ast
-from azure.servicebus import ServiceBusClient, ServiceBusMessage
+from azure.servicebus import ServiceBusClient
+from busCommunication import *
 from datetime import datetime, timedelta
 import threading
 pd.set_option('plotting.backend', 'pandas_bokeh')
 
 CONNECTION_STR = "Endpoint=sb://testeiotbroker.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=Tig31UtDJ9LY+epBCrzehYnPtM3KvbLjxMU9SycGcKY="
 TOPIC_NAME_TELEMETRIA = "telemetria"
+TOPIC_NAME_CONTROLE = "comandos_usuarios"
 SUBSCRIPTION_NAME = "Interface_do_usuario"
-servicebus_client = ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR, logging_enable=True)
 def app():
-	message = {
-        "temperatura": '',
-        "umidade": '',
-        "luminosidade": '',
-        "presenca": '',
-        "tempo": '',
-    }
+	out = 0
 	servicebus_client = ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR, logging_enable=True)
-	with servicebus_client as client:
-		receiver = servicebus_client.get_subscription_receiver(topic_name=TOPIC_NAME_TELEMETRIA, subscription_name=SUBSCRIPTION_NAME, max_wait_time=5)
-		with receiver:
-			for msg in receiver:
-				message=ast.literal_eval(str(msg))
-				receiver.complete_message(msg)
-	out = message
+	while out==0:
+		out=receive_message(servicebus_client,TOPIC_NAME_TELEMETRIA,SUBSCRIPTION_NAME)
 	st.markdown("<center><h1>Smartroom 📟</h1><center>", unsafe_allow_html=True)
 	st.markdown('<center><h4>Apresentação do trabalho da cadeira INTERNET DAS COISAS</h4><center>', unsafe_allow_html=True)
 	st.markdown('---')
@@ -48,7 +38,14 @@ def app():
 	st.sidebar.title('Atuadores')
 	led = st.sidebar.slider('Nivel de Luminosidade: ', 0, 100, 0)
 	temperatura = st.sidebar.slider('Temperatura: ', 0, 100, 0)
-	
+	message = {
+            "temperatura": temperatura,
+            "umidade": 0,
+            "luminosidade": led,
+            "presenca": 0,
+            "tempo": datetime.datetime.utcnow().timestamp()
+        }
+	send_message(servicebus_client,TOPIC_NAME_CONTROLE,message)
 	print(message)
 	
 
