@@ -1,19 +1,14 @@
 #import RPi.GPIO as GPIO
 import time
 #import serial
-from azure.iot.device.aio import IoTHubDeviceClient
-from azure.iot.device import Message
-from azure.servicebus import ServiceBusClient, ServiceBusMessage
-import azure.servicebus
+from azure.servicebus import ServiceBusClient
+from busCommunication import *
+import Classes
 import json
-import asyncio
 import threading
-import ast
 import datetime
+import lamp
 
-IOTHUB_DEVICE_CONNECTION_STRING = 'HostName=ServidorIoT.azure-devices.net;DeviceId=DispositivoTeste;SharedAccessKey=vI0U2HxL1HV/60SVzXoskPCAhNZpmmN28r1ilGaiKfs='
-CONNECTION_STR = "Endpoint=sb://testeiotbroker.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=Tig31UtDJ9LY+epBCrzehYnPtM3KvbLjxMU9SycGcKY="
-TOPIC_NAME = "telemetria"
 SUBSCRIPTION_NAME = "Gerenciador_de_atuadores"
 
 #arduino = serial.Serial('/dev/ttyUSB0', 9600)
@@ -23,13 +18,10 @@ SUBSCRIPTION_NAME = "Gerenciador_de_atuadores"
 #GPIO.setup(27,GPIO.OUT)
 #GPIO.setup(23,GPIO.OUT)
 
-def send_telemetry(sender, telemetry_message):
-    message = ServiceBusMessage(json.dumps(telemetry_message))
-    # send the message to the topic
-    with sender:
-        sender.send_messages(message)
 
-def thread_telemetria(servicebus_client,TOPIC_NAME):
+def thread_telemetria(CONNECTION_STR,TOPIC_NAME_TELEMETRY):
+    temperatura=1
+    servicebus_client = ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR, logging_enable=True)
     while(True):
         '''temperatura = arduino.readline()
         temperatura = temperatura.decode("utf-8")
@@ -47,9 +39,9 @@ def thread_telemetria(servicebus_client,TOPIC_NAME):
         presenca = presenca.decode("utf-8")
         presenca = int(presenca)
         print(presenca)'''
-        temperatura=28
-        umidade=88
-        luminosidade=188
+        temperatura=temperatura+1
+        umidade=15
+        luminosidade=25
         presenca=1
         dispositivo = "Raspberry Pi + Arduino"
         
@@ -58,11 +50,10 @@ def thread_telemetria(servicebus_client,TOPIC_NAME):
             "umidade": umidade,
             "luminosidade": luminosidade,
             "presenca": presenca,
-            "tempo": datetime.datetime.utcnow()
+            "tempo": datetime.datetime.utcnow().timestamp()
         }
-        with servicebus_client:
-            sender = servicebus_client.get_topic_sender(topic_name=TOPIC_NAME)
-            send_telemetry(sender, dados)
+        send_message(servicebus_client,TOPIC_NAME_TELEMETRY,dados)
+        
 
         
         '''
@@ -76,34 +67,50 @@ def thread_telemetria(servicebus_client,TOPIC_NAME):
         if(presenca == "0"):
             GPIO.output(23, 0)
         '''
+        time.sleep(5)
             
-        time.sleep(1)
-        break
 
-def thread_atuacao(servicebus_client,TOPIC_NAME,SUBSCRIPTION_NAME):
-    
+def thread_atualizar_ambiente(ambiente,CONNECTION_STR,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME):
+    servicebus_client = ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR, logging_enable=True)
+    telemetria=receive_message(servicebus_client,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME)
+    if telemetria!=0:
+        ambiente.atualizar_parametros(telemetria)
     while 1:
-        with servicebus_client as client:
-            receiver = servicebus_client.get_subscription_receiver(topic_name=TOPIC_NAME, subscription_name=SUBSCRIPTION_NAME, max_wait_time=5)
-            with receiver:
-                for msg in receiver:
-                    message=ast.literal_eval(str(msg))
-                    #message=json.loads(msg.body().decode('utf-8'))
-                    #print(message)
-                    #receiver.complete_message(msg)
-
+        telemetria=receive_message(servicebus_client,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME)
+        if telemetria!=0:
+            ambiente.atualizar_parametros(telemetria)
+        print(ambiente.temperatura)
         time.sleep(1)
-        break
 
-servicebus_client = ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR, logging_enable=True)
+def thread_atualizar_controle(controle,CONNECTION_STR,TOPIC_NAME_CONTROL,SUBSCRIPTION_NAME):
+    servicebus_client = ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR, logging_enable=True)
+    comandos=receive_message(servicebus_client,TOPIC_NAME_CONTROL,SUBSCRIPTION_NAME)
+    if comandos!=0:
+        controle.atualizar_parametros(comandos)
+    while 1:
+        comandos=receive_message(servicebus_client,TOPIC_NAME_CONTROL,SUBSCRIPTION_NAME)
+        if comandos!=0:
+            controle.atualizar_parametros(comandos)
+        time.sleep(1)
 
-#t_1 = threading.Thread(target=thread_telemetria, args=(servicebus_client,TOPIC_NAME,))
-#t_2 = threading.Thread(target=thread_atuacao, args=(servicebus_client,TOPIC_NAME,SUBSCRIPTION_NAME,))
 
-#t_1.start()
 
-#t_2.start()
 
-thread_telemetria(servicebus_client,TOPIC_NAME)
-thread_atuacao(servicebus_client,TOPIC_NAME,SUBSCRIPTION_NAME)
+ambiente=Classes.Ambiente()
+controle=Classes.Controle()
+lampada=lamp.Lamp(0)
 
+t_1 = threading.Thread(target=thread_telemetria, args=(CONNECTION_STR,TOPIC_NAME_TELEMETRY))
+t_2 = threading.Thread(target=thread_atualizar_controle, args=(controle,CONNECTION_STR,TOPIC_NAME_CONTROL,SUBSCRIPTION_NAME))
+t_3 = threading.Thread(target=thread_atualizar_ambiente, args=(ambiente,CONNECTION_STR,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME))
+t_4 = threading.Thread(target=lamp.business_rule, args=(lampada,ambiente,controle))
+
+t_1.start()
+
+t_2.start()
+
+t_3.start()
+
+
+
+#t_4.start()
