@@ -50,6 +50,16 @@ def read_last_file(db_conn_string,database_name,container_name):#Retorna o mais 
 		output.append(data)
 	return output[0]
 
+def read_files(db_conn_string,database_name,container_name,n):#Retorna os n mais recentes arquivos adicionados ao banco de dados
+	client = pymongo.MongoClient(db_conn_string)
+	db = client[database_name] 
+	col = db[container_name]
+	x = col.find().sort('_id',-1).limit(n)
+	output=[]
+	for data in x:
+		output.append(data)
+	return output
+
 def read_telemetry(db_conn_string,database_name,container_telemetry_name):
 	dictionary=read_last_file(db_conn_string,database_name,container_telemetry_name)
 	return [dictionary['temperatura'],dictionary['umidade'],dictionary['luminosidade'],dictionary['presenca'],dictionary['EnqueuedTimeUtc']]#Formato de retorno[telemetrias,tempo da telemetria]
@@ -58,8 +68,8 @@ def read_target(db_conn_string,database_name,container_target_name):
 	dictionary=read_last_file(db_conn_string,database_name,container_target_name)
 	return [dictionary['temperatura'],dictionary['umidade'],dictionary['luminosidade'],dictionary['presenca'],dictionary['EnqueuedTimeUtc']]#Formato de retorno[telemetrias,tempo da telemetria]
 
-#attribute_value=[29,88,205,1]
+attribute_value=[29,88,205,1]
 
-#send_telemetry(db_conn_string,database_name,container_telemetry_name,attribute_value)
+send_telemetry(db_conn_string,database_name,container_telemetry_name,attribute_value)
 
 #print(read_telemetry(db_conn_string,database_name,container_telemetry_name))
