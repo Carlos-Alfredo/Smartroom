@@ -53,61 +53,63 @@ def thread_telemetria(CONNECTION_STR,TOPIC_NAME_TELEMETRY):
         time.sleep(1)
             
 
-def thread_atualizar_ambiente(ambiente,CONNECTION_STR,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME):
-    servicebus_client = ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR, logging_enable=True, retry_total=10, retry_backoff_factor=1, retry_backoff_max=30)
+def business_rule(lamp,ambiente,controle):#Regra de negócios para a lâmpada, será uma thread
+    k_luminosity=calibration_routine(lamp,ambiente)
+    print("Constante de luminosidade: ",k_luminosity)
+    if(controle.luminosidade==0 or ambiente.presenca==0):#Caso particular luz off
+        lamp.set_luminosity(0)
+    else:
+        delta=controle.luminosidade-ambiente.luminosidade
+        if (delta>2 or delta<-2):#Fora da margem aceitável de erro
+            lamp.set_luminosity(lamp.luminosity_set+delta/k_luminosity)
+            print(lamp.luminosity_set+delta/k_luminosity)
+            
+def calibration_routine(lamp,ambiente,k_luminosity):#Rotina de calibração da lâmpada, executada no início de business_rule
+    
+    lamp.set_luminosity(0)
+    tempo=datetime.datetime.utcnow().timestamp()
+    while ambiente.tempo_atualizacao<=tempo:
+        time.sleep(0.1)
+    light_level_turn_off=ambiente.luminosidade
+    
+    lamp.set_luminosity(lamp.max_luminosity)
+    tempo=datetime.datetime.utcnow().timestamp()
+    while ambiente.tempo_atualizacao<=tempo:
+        time.sleep(0.1)
+    light_level_turn_on=ambiente.luminosidade
+    if light_level_turn_on-light_level_turn_off==0:
+        k_luminosity=1/lamp.max_luminosity
+    else:
+        k_luminosity=(light_level_turn_on-light_level_turn_off)/lamp.max_luminosity
+
+    return k_luminosity
+
+def atualizar_ambiente(ambiente,servicebus_client,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME):
     telemetria=receive_message(servicebus_client,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME)
     if telemetria!=0:
         ambiente.atualizar_parametros(telemetria)
-    while 1:
-        telemetria=receive_message(servicebus_client,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME)
-        if telemetria!=0:
-            ambiente.atualizar_parametros(telemetria)
-        #print(ambiente.temperatura)
-        #print(ambiente.umidade)
-        #print(ambiente.luminosidade)
-        print(ambiente.presenca)
-        time.sleep(1)
 
-def thread_atualizar_controle(controle,CONNECTION_STR,TOPIC_NAME_CONTROL,SUBSCRIPTION_NAME):
-    servicebus_client = ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR, logging_enable=True, retry_total=10, retry_backoff_factor=1, retry_backoff_max=30)
+def atualizar_controle(controle,servicebus_client,TOPIC_NAME_CONTROL,SUBSCRIPTION_NAME):
     comandos=receive_message(servicebus_client,TOPIC_NAME_CONTROL,SUBSCRIPTION_NAME)
     if comandos!=0:
         controle.atualizar_parametros(comandos)
+
+def thread_atuacao(lampada,controle,ambiente,CONNECTION_STR,TOPIC_NAME_CONTROL,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME):
+    servicebus_client = ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR, logging_enable=True)
+    k_luminosity=calibration_routine(lampada,ambiente)
     while 1:
-        comandos=receive_message(servicebus_client,TOPIC_NAME_CONTROL,SUBSCRIPTION_NAME)
-        if comandos!=0:
-            controle.atualizar_parametros(comandos)
-        #print(controle.tempo_atualizacao)
-        #print(controle.temperatura)
-        #print(controle.umidade)
-        print(controle.luminosidade)
-        #print(controle.presenca)
-        #string=str(controle.luminosidade)+','+str(controle.temperatura)+'/'
-        #comunicacao.write(string)
-        #comunicacao.write(',')
-        #comunicacao.write(controle.temperatura)
-        #comunicacao.write('/')
-        time.sleep(5)
-
-
+        atualizar_ambiente(ambiente,servicebus_client,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME)
+        atualizar_controle(controle,servicebus_client,TOPIC_NAME_CONTROL,SUBSCRIPTION_NAME)
+        business_rule(lampada,ambiente,controle,k_luminosity)
 
 
 ambiente=Classes.Ambiente()
 controle=Classes.Controle()
-lampada=lamp.Lamp(0, 12)
-lampada.set_luminosity(100)
+lampada=lamp.Lamp(0)
 
 t_1 = threading.Thread(target=thread_telemetria, args=(CONNECTION_STR,TOPIC_NAME_TELEMETRY))
-t_2 = threading.Thread(target=thread_atualizar_controle, args=(controle,CONNECTION_STR,TOPIC_NAME_CONTROL,SUBSCRIPTION_NAME))
-t_3 = threading.Thread(target=thread_atualizar_ambiente, args=(ambiente,CONNECTION_STR,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME))
-t_4 = threading.Thread(target=lamp.business_rule, args=(lampada,ambiente,controle))
+t_2 = threading.Thread(target=thread_atuacao, args=(lampada,controle,ambiente,CONNECTION_STR,TOPIC_NAME_CONTROL,TOPIC_NAME_TELEMETRY,SUBSCRIPTION_NAME))
 
 t_1.start()
 
 t_2.start()
-
-t_3.start()
-
-t_4.start()
-
-#comunicacao.close()
